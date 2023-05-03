@@ -20,7 +20,7 @@ class ChordNode:
         self.host = socket.gethostbyname(socket.gethostname())
         self.port = 0
         self.nsAddressPort = ('catalog.cse.nd.edu', 9097)
-        self.nodeId = (int.from_bytes(hashlib.sha1(self.host.encode()).digest(), sys.byteorder)) % pow(2, self.mbit)
+        self.nodeId = None
         self.nsNode = None
         self.fingerTable = [None] * self.mbit
         self.fingerTableIds = [None] * self.mbit
@@ -38,9 +38,11 @@ class ChordNode:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             sock.bind((self.host, self.port))
             self.port = sock.getsockname()[1]
+            self.nodeId = (int.from_bytes(hashlib.sha1((self.host+str(self.port)).encode()).digest(), sys.byteorder)) % pow(2, self.mbit)
             self.fingerTable = [(self.host, self.port)] * self.mbit
             sock.listen()
             self.join()
+            # self.altFingerTableCalc()
             self.fingerTableUpdate()
             self.neighborMonitor()
             print(f"Node-listening on {self.host} port", self.port)
@@ -96,6 +98,12 @@ class ChordNode:
             if sock is None:                            # if the predecessor can not be connected, then predecessor failed and should be marked as none.
                 self.predecessor = None
             sock.close()
+            self.fingerTableUpdate()
+            print('nodeID:', self.nodeId)
+            print('fingerTableIds:', self.fingerTableIds)
+            print('prev:', self.predecessor)
+            print('next:', self.successor)
+            print('next of the next:', self.successor2)
             sleep(60)
 
     def neighborMonitor(self):
@@ -103,13 +111,13 @@ class ChordNode:
         regularNM.start()
 
     def fingerTableUpdate(self):
-        if self.successor[0] == self.host:
+        if self.successor == (self.host, self.port):
             return
         node, status = self.succRequest(self.successor, 1 + self.nodeId)
         if status:
             self.fingerTable[0] = node
         for i in range(1, self.mbit):
-            prevNodeId = (int.from_bytes(hashlib.sha1(self.fingerTable[i-1][0].encode()).digest(), sys.byteorder)) % pow(2, self.mbit)
+            prevNodeId = self.fingerTableIds[i-1]
             if pow(2, i) + self.nodeId <= prevNodeId:
                 self.fingerTable[i] = self.fingerTable[i-1]
             else:
@@ -129,24 +137,34 @@ class ChordNode:
             self.successor2 = node
             self.predecessor = node
         else:
+            print('Join an exisiting Chord system.')
             self.successor = self.succRequest(self.nsNode, 1 + self.nodeId)
             self.fingerTable[0] = self.successor
             self.ht = self.htMove(self.successor, self.nodeId)              # when a new node join an existing chord, the successor of the new node should move part of the HashTable to the new node. Other modifications is done in timerValidate().
 
     def isFirst(self):
         catalog = requests.get('http://catalog.cse.nd.edu:9097/query.json')
+        # print(catalog.json())
         latest_time = 0
         latest_address = None
         for service in catalog.json():
-            if 'project' in service and service['project'] == self and service['lastheardfrom'] > latest_time:
+            if 'project' in service and service['project'][0:5] == 'chord' and service['lastheardfrom'] > latest_time:
                 latest_time = service['lastheardfrom']
                 latest_address = (service['address'], service['port'])
         if latest_address:
             # print(f"client-get the address of server with name {self.server_name} in the catalog")
-            self.nsNode = latest_address
-            return False
+            print("test if the chord node on name server active... ")
+            sock = self.connect(latest_address)
+            if sock:
+                print("Active! test done. Join the Chord.")
+                self.nsNode = latest_address
+                return False
+            else:
+                print("Not Active! test done. Start a New Chord.")
+                return True
         else:
             return True
+        # return True
 
     def leave(self):
         self.htMerge(self.successor)            # when a node leaves, it should notify the successor to merge its backup with its hashtable. Other modifications is done in timerValidate().
@@ -368,9 +386,8 @@ class ChordNode:
             self.backup = {}
             return json.dumps({'status': 'success', 'method': method})
         elif method == 'succ':
-            key = req['key']
-            new_key = (int.from_bytes(hashlib.sha1(key.encode()).digest(), sys.byteorder)) % pow(2, self.mbit)
-            idx, isfound = self.fingerTableLocate(new_key)
+            key = req['key'] & pow(2, self.mbit)
+            idx, isfound = self.fingerTableLocate(key)
             host, port = self.fingerTable[idx]
             if isfound:
                 return json.dumps({'status': 'success', 'method': method, 'host': host, 'port': port})
@@ -390,16 +407,16 @@ class ChordNode:
 
     def altFingerTableCalc(self):
         for i in range(self.mbit):
-            host = self.fingerTable[i][0]
-            self.fingerTableIds[i] = (int.from_bytes(hashlib.sha1(host.encode()).digest(), sys.byteorder)) % pow(2, self.mbit)
+            hostport = self.fingerTable[i][0]+str(self.fingerTable[i][0])
+            self.fingerTableIds[i] = (int.from_bytes(hashlib.sha1(hostport.encode()).digest(), sys.byteorder)) % pow(2, self.mbit)
 
     def fingerTableLocate(self, key):
         if key < self.fingerTableIds[0] or self.nodeId > self.fingerTableIds[0]:
-            return 0
+            return 0, True
         for i in range(1, self.mbit):
             if key > self.fingerTableIds[i-1] and key < self.fingerTableIds[i]:
-                return i
-        return self.mbit-1
+                return i, False
+        return self.mbit-1, False
 
 
     def accept_wrapper(self, sock):
@@ -417,11 +434,11 @@ class ChordNode:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             sock.settimeout(5)
             try:
-                sock.connect((targetHost, targetPort))
+                sock.connect(targetNode)
                 # print(f"client-connecting to host {self.host} on port {self.port}")
                 break
             except socket.error:
-                print(f"client-failed to connect to host {targetHost} on port {targetPort}\nRetry Connection...")
+                print(f"client-failed to connect to host {targetHost} on port {targetPort}")
                 return None
         return sock
 
@@ -438,7 +455,7 @@ class ChordNode:
                 response = json.loads(response)
                 break
             except socket.error:
-                print(f'client-failed send/receive with Node \nRetrying Connection...')
+                print(f'Chord Node-failed send/receive with Node \nRetrying Connection...')
                 return None, False
         return response, True
 
