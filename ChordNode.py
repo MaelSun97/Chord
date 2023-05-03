@@ -435,6 +435,8 @@ class ChordNode:
         self.sel.register(conn, events, data=data)
 
     def connect(self, targetNode):
+        if targetNode is None:
+            return None
         targetHost, targetPort = targetNode
         while True:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
