@@ -89,10 +89,13 @@ class ChordNode:
             else:
                 if node is None:                        # if the predecessor of successor is none, then the actual successor failed
                     self.predModify(self.successor, (self.host, self.port))      # fix topology
-                host, port = node
-                if host != self.host:                   # if the successor's predecessor is reachable but different then current node, then new node has been added.
-                    self.successor2 = self.successor
-                    self.successor = node
+                else:
+                    # host, port = node
+                    if node != (self.host, self.port):                   # if the successor's predecessor is reachable but different than current node, then new node has been added.
+                        self.successor2 = self.successor
+                        self.successor = node
+                        self.predModify(self.successor, (self.host, self.port))
+                    else:
             self.htBackup()                             # send current node's hashtable to the successor as the latter's backup
             if self.predecessor:
                 sock = self.connect(self.predecessor)       # try to connect to the predecessor
@@ -113,8 +116,8 @@ class ChordNode:
         regularNM.start()
 
     def fingerTableUpdate(self):
-        print(self.fingerTable)
-        print(self.fingerTableIds)
+        # print(self.fingerTable)
+        # print(self.fingerTableIds)
         if self.successor == (self.host, self.port):
             return
         node, status = self.succRequest(self.successor, 1 + self.nodeId)
@@ -148,7 +151,7 @@ class ChordNode:
                 self.successor = node
                 self.successor2 = self.succ2Request(node)
                 self.fingerTable[0] = self.successor
-                self.ht._hashtable = self.htMove(self.successor, self.nodeId)              # when a new node join an existing chord, the successor of the new node should move part of the HashTable to the new node. Other modifications is done in timerValidate().
+                self.ht._hashtable = self.htMove(self.successor, self.nodeId, self.host, self.port)              # when a new node join an existing chord, the successor of the new node should move part of the HashTable to the new node. Other modifications is done in timerValidate().
 
     def isFirst(self):
         catalog = requests.get('http://catalog.cse.nd.edu:9097/query.json')
@@ -228,12 +231,12 @@ class ChordNode:
                 succ2 = response['host'], response['port']
                 return succ2
 
-    def htMove(self, targetNode, prevId):
+    def htMove(self, targetNode, prevId, host, port):
         sock = self.connect(targetNode)
         if not sock:
             return None, False
         else:
-            msg = {'method': 'htMove', 'prevId': prevId}
+            msg = {'method': 'htMove', 'prevId': prevId, 'host':host, 'port':port}
             response, status = self.send_request(sock, msg)
             sock.close()
             if not status:
@@ -385,6 +388,9 @@ class ChordNode:
             return json.dumps({'status': 'success', 'method': method, 'host': self.successor[0], 'port': self.successor[1]})
         elif method == 'htMove':
             prevht = self.ht.slice(int(req['prevId']), self.nodeId)
+            self.predecessor = (req['host'], req['port'])
+            if self.successor == (self.host, self.port):
+                self.successor = self.predecessor
             return json.dumps({'status': 'success', 'method': method, 'prevht': prevht})
         elif method == 'htBackup':
             self.backup = req['backup']
