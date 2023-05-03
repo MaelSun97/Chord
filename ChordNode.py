@@ -146,6 +146,7 @@ class ChordNode:
             print(node, status)
             if status:
                 self.successor = node
+                self.successor2 = self.succ2Request(node)
                 self.fingerTable[0] = self.successor
                 self.ht._hashtable = self.htMove(self.successor, self.nodeId)              # when a new node join an existing chord, the successor of the new node should move part of the HashTable to the new node. Other modifications is done in timerValidate().
 
@@ -219,7 +220,7 @@ class ChordNode:
             return None, False
         else:
             msg = {'method': 'successor2'}
-            response, status = send_msg(sock, msg)
+            response, status = self.send_request(sock, msg)
             sock.close()
             if not status:
                 return None, False
