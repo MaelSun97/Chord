@@ -69,7 +69,7 @@ if __name__ == '__main__':
     if len(sys.argv) != 3:
         print('client-invalid arguments for HashTableClient.py. Arguments should be the host and port')
         exit()
-        host, port = sys.argv[1], int(sys.argv[2])
-        client = ChordClient((host, port))
-        client.insert('a', '10')
+    host, port = sys.argv[1], int(sys.argv[2])
+    client = ChordClient((host, port))
+    client.insert('a', '10')
 
