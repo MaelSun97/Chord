@@ -43,7 +43,7 @@ class ChordNode:
             sock.listen()
             self.join()
             # self.altFingerTableCalc()
-            self.fingerTableUpdate()
+            # self.fingerTableUpdate()
             self.neighborMonitor()
             print(f"Node-listening on {self.host} port", self.port)
             sock.setblocking(False)
@@ -104,7 +104,7 @@ class ChordNode:
             print('prev:', self.predecessor)
             print('next:', self.successor)
             print('next of the next:', self.successor2)
-            sleep(60)
+            sleep(20)
 
     def neighborMonitor(self):
         regularNM = threading.Thread(target=self.timerValidate, args=())
@@ -138,9 +138,11 @@ class ChordNode:
             self.predecessor = node
         else:
             print('Join an exisiting Chord system.')
-            self.successor = self.succRequest(self.nsNode, 1 + self.nodeId)
-            self.fingerTable[0] = self.successor
-            self.ht = self.htMove(self.successor, self.nodeId)              # when a new node join an existing chord, the successor of the new node should move part of the HashTable to the new node. Other modifications is done in timerValidate().
+            node, status = self.succRequest(self.nsNode, 1 + self.nodeId)
+            if status:
+                self.successor = node
+                self.fingerTable[0] = self.successor
+                self.ht._hashtable = self.htMove(self.successor, self.nodeId)              # when a new node join an existing chord, the successor of the new node should move part of the HashTable to the new node. Other modifications is done in timerValidate().
 
     def isFirst(self):
         catalog = requests.get('http://catalog.cse.nd.edu:9097/query.json')
@@ -377,7 +379,7 @@ class ChordNode:
             return json.dumps({'status': 'success', 'method': method, 'host': self.successor[0], 'port': self.successor[1]})
         elif method == 'htMove':
             prevht = self.ht.slice(int(req['prevId']), self.nodeId)
-            return json.dumps({'status': 'success', 'method': method, 'prevht': prevht._hashtable})
+            return json.dumps({'status': 'success', 'method': method, 'prevht': prevht})
         elif method == 'htBackup':
             self.backup = req['backup']
             return json.dumps({'status': 'success', 'method': method})
