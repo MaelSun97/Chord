@@ -94,10 +94,12 @@ class ChordNode:
                     self.successor2 = self.successor
                     self.successor = node
             self.htBackup()                             # send current node's hashtable to the successor as the latter's backup
-            sock = self.connect(self.predecessor)       # try to connect to the predecessor
-            if sock is None:                            # if the predecessor can not be connected, then predecessor failed and should be marked as none.
-                self.predecessor = None
-            sock.close()
+            if self.predecessor:
+                sock = self.connect(self.predecessor)       # try to connect to the predecessor
+                if sock is None:                            # if the predecessor can not be connected, then predecessor failed and should be marked as none.
+                    self.predecessor = None
+                sock.close()
+            self.altFingerTableCalc()
             self.fingerTableUpdate()
             print('nodeID:', self.nodeId)
             print('fingerTableIds:', self.fingerTableIds)
@@ -111,6 +113,8 @@ class ChordNode:
         regularNM.start()
 
     def fingerTableUpdate(self):
+        print(self.fingerTable)
+        print(self.fingerTableIds)
         if self.successor == (self.host, self.port):
             return
         node, status = self.succRequest(self.successor, 1 + self.nodeId)
@@ -139,6 +143,7 @@ class ChordNode:
         else:
             print('Join an exisiting Chord system.')
             node, status = self.succRequest(self.nsNode, 1 + self.nodeId)
+            print(node, status)
             if status:
                 self.successor = node
                 self.fingerTable[0] = self.successor
