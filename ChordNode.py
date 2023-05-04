@@ -59,8 +59,7 @@ class ChordNode:
                             self.service_connection(key, mask)
             except KeyboardInterrupt:
                 print("Caught keyboard interrupt, exiting")
-            finally:
-                self.sel.close()
+                exit()
 
     def name_register(self):
         udpsock = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
@@ -95,21 +94,23 @@ class ChordNode:
                         self.successor2 = self.successor
                         self.successor = node
                         self.predModify(self.successor, (self.host, self.port))
-                    else:
+            succ2, status = self.succ2Request(self.successor)
+            if status:
+                self.successor2 = succ2
             self.htBackup()                             # send current node's hashtable to the successor as the latter's backup
             if self.predecessor:
                 sock = self.connect(self.predecessor)       # try to connect to the predecessor
                 if sock is None:                            # if the predecessor can not be connected, then predecessor failed and should be marked as none.
                     self.predecessor = None
-                sock.close()
+                    sock.close()
             self.altFingerTableCalc()
             self.fingerTableUpdate()
-            print('nodeID:', self.nodeId)
-            print('fingerTableIds:', self.fingerTableIds)
+            print('node:', self.port)
+            # print('fingerTableIds:', self.fingerTableIds)
             print('prev:', self.predecessor)
             print('next:', self.successor)
             print('next of the next:', self.successor2)
-            sleep(20)
+            sleep(5)
 
     def neighborMonitor(self):
         regularNM = threading.Thread(target=self.timerValidate, args=())
@@ -149,7 +150,8 @@ class ChordNode:
             print(node, status)
             if status:
                 self.successor = node
-                self.successor2 = self.succ2Request(node)
+                succ2, status = self.succ2Request(node)
+                self.successor2 = succ2
                 self.fingerTable[0] = self.successor
                 self.ht._hashtable = self.htMove(self.successor, self.nodeId, self.host, self.port)              # when a new node join an existing chord, the successor of the new node should move part of the HashTable to the new node. Other modifications is done in timerValidate().
 
@@ -229,7 +231,7 @@ class ChordNode:
                 return None, False
             else:
                 succ2 = response['host'], response['port']
-                return succ2
+                return succ2, True
 
     def htMove(self, targetNode, prevId, host, port):
         sock = self.connect(targetNode)
