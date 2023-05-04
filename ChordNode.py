@@ -111,7 +111,7 @@ class ChordNode:
             print('prev:', self.predecessor)
             print('next:', self.successor)
             print('next of the next:', self.successor2)
-            sleep(5)
+            sleep(15)
 
     def neighborMonitor(self):
         regularNM = threading.Thread(target=self.timerValidate, args=())
@@ -274,9 +274,10 @@ class ChordNode:
                 recv_data = recv_msg(sock)
                 if recv_data:
                     msg = recv_data.decode('utf-8')
-                    print(msg)
+                    print('received:', msg)
                     msg_json = json.loads(msg)
                     response = self.handle(msg_json)
+                    print('send:', response)
                     msg_send = response.encode('utf-8')
                     data.outb += msg_send
                 else:
