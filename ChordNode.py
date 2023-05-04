@@ -64,7 +64,7 @@ class ChordNode:
     def name_register(self):
         udpsock = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
         name = {"type": "hashtable",
-                "owner": "rsun2",
+                "owner": "dminogue",
                 "port": self.port,
                 "project": 'chord'+str(self.nodeId)}
         msg = json.dumps(name).encode('utf-8')
@@ -162,7 +162,7 @@ class ChordNode:
         latest_time = 0
         latest_address = None
         for service in catalog.json():
-            if 'project' in service and service['project'][0:5] == 'chord' and service['lastheardfrom'] > latest_time:
+            if 'project' in service and service['project'][0:5] == 'chord' and service['lastheardfrom'] > latest_time and service['owner'] == 'dminogue':
                 latest_time = service['lastheardfrom']
                 latest_address = (service['address'], service['port'])
         if latest_address:
@@ -274,10 +274,10 @@ class ChordNode:
                 recv_data = recv_msg(sock)
                 if recv_data:
                     msg = recv_data.decode('utf-8')
-                    print('received:', msg)
+                    #print('received:', msg)
                     msg_json = json.loads(msg)
                     response = self.handle(msg_json)
-                    print('send:', response)
+                    #print('send:', response)
                     msg_send = response.encode('utf-8')
                     data.outb += msg_send
                 else:
@@ -320,6 +320,15 @@ class ChordNode:
                 key = req['key']
                 new_key = (int.from_bytes(hashlib.sha1(key.encode()).digest(), sys.byteorder)) % pow(2, self.mbit)
                 idx, isfound = self.fingerTableLocate(new_key)
+                if self.fingerTable[idx] == (self.host, self.port):
+                    key = req['key']
+                    value = req['value']
+                    status = self.ht.insert(key, value)
+                    if status:
+                        return json.dumps({'status': 'success', 'method': method, 'key': key, 'value': value})
+                    else:
+                        return json.dumps({'status': 'failure', 'method': method,
+                                           'failure': f'key {key} already exists with a different value, so it can not be inserted'})
                 sock = self.connect(self.fingerTable[idx])
                 if not sock:
                     return json.dumps({'status': 'failure', 'method': method, 'failure': f'connection to the chord node {self.fingerTable[idx]} with id {self.fingerTableIds[idx]} failed'})
@@ -347,6 +356,14 @@ class ChordNode:
                 key = req['key']
                 new_key = (int.from_bytes(hashlib.sha1(key.encode()).digest(), sys.byteorder)) % pow(2, self.mbit)
                 idx, isfound = self.fingerTableLocate(new_key)
+                if self.fingerTable[idx] == (self.host, self.port):
+                    key = req['key']
+                    value = self.ht.lookup(key)
+                    if value:
+                        return json.dumps({'status': 'success', 'method': method, 'key': key, 'value': value})
+                    else:
+                        return json.dumps({'status': 'failure', 'method': method,
+                                           'failure': f'key {key} does not exists and can not be looked up'})
                 sock = self.connect(self.fingerTable[idx])
                 if not sock:
                     return json.dumps({'status': 'failure', 'method': method, 'failure': f'connection to the chord node {self.fingerTable[idx]}  with id {self.fingerTableIds[idx]} failed'})
@@ -468,6 +485,7 @@ class ChordNode:
         req = req.encode('utf-8')
         while True:
             try:
+                #print(f'sent on: {sock}');
                 send_msg(sock, req)
                 response = recv_msg(sock)
                 if not response:
@@ -475,8 +493,9 @@ class ChordNode:
                 response = response.decode('utf-8')
                 response = json.loads(response)
                 break
-            except socket.error:
-                print(f'Chord Node-failed send/receive with Node \nRetrying Connection...')
+            except socket.error as err:
+                print(f'Chord Node-failed send/receive with Node {sock} \nRetrying Connection...')
+                raise err;
                 return None, False
         return response, True
 
