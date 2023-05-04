@@ -36,7 +36,7 @@ class ChordClient:
                 response = json.loads(response)
                 break
             except socket.error:
-                print(f'client-failed send/receive with Node \nRetrying Connection...')
+                print(f'client-failed send/receive with Node')
                 return None, False
         return response, True
 
@@ -72,4 +72,9 @@ if __name__ == '__main__':
     host, port = sys.argv[1], int(sys.argv[2])
     client = ChordClient((host, port))
     client.insert('a', '10')
+    client.insert('b', '100')
+    client.insert('c', '1000')
+    client.lookup('a')
+    client.lookup('b')
+    client.lookup('c')
 

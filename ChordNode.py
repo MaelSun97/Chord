@@ -102,6 +102,7 @@ class ChordNode:
                 sock = self.connect(self.predecessor)       # try to connect to the predecessor
                 if sock is None:                            # if the predecessor can not be connected, then predecessor failed and should be marked as none.
                     self.predecessor = None
+                else:
                     sock.close()
             self.altFingerTableCalc()
             self.fingerTableUpdate()
@@ -199,7 +200,7 @@ class ChordNode:
         else:
             response, status = self.send_request(sock, msg)
             sock.close()
-            if response['host'] != 'None':
+            if response and response['host'] != 'None':
                 predecessor = response['host'], response['port']
                 return predecessor, True
             else:
@@ -273,6 +274,7 @@ class ChordNode:
                 recv_data = recv_msg(sock)
                 if recv_data:
                     msg = recv_data.decode('utf-8')
+                    print(msg)
                     msg_json = json.loads(msg)
                     response = self.handle(msg_json)
                     msg_send = response.encode('utf-8')
@@ -325,7 +327,7 @@ class ChordNode:
                 response, status = self.send_request(sock, req)
                 sock.close()
                 if status:
-                    return response
+                    return json.dumps(response)
                 else:
                     return json.dumps({'status': 'failure', 'method': method, 'failure': f'connection to the chord node {self.fingerTable[idx]} with id {self.fingerTableIds[idx]} failed'})
         elif method == 'lookup':
@@ -352,7 +354,7 @@ class ChordNode:
                 response, status = self.send_request(sock, req)
                 sock.close()
                 if status:
-                    return response
+                    return json.dumps(response)
                 else:
                     return json.dumps({'status': 'failure', 'method': method, 'failure': f'connection to the chord node {self.fingerTable[idx]}  with id {self.fingerTableIds[idx]} failed'})
         elif method == 'remove':
@@ -375,7 +377,7 @@ class ChordNode:
                 response, status = self.send_request(sock, req)
                 sock.close()
                 if status:
-                    return response
+                    return json.dumps(response)
                 else:
                     return json.dumps({'status': 'failure', 'method': method, 'failure': f'connection to the chord node {self.fingerTable[idx]}  with id {self.fingerTableIds[idx]} failed'})
         elif method == 'predecessor':
@@ -414,7 +416,7 @@ class ChordNode:
                 response, status = self.send_request(sock, req)
                 sock.close()
                 if status:
-                    return response
+                    return json.dumps(response)
                 else:
                     return json.dumps({'status': 'failure', 'method': method, 'failure': f'connection to the chord node {self.fingerTable[idx]}  with id {self.fingerTableIds[idx]} failed'})
         else:
